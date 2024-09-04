@@ -75,7 +75,7 @@ if uploaded_file is not None:
 
 # download-knop voor aangepaste csv instellen
 if uploaded_file is not None:
-	out_csv = out_csv.to_csv(sep=';', index=False, encoding='utf-8')
+	out_csv = out_csv.to_csv(sep=';', index=False, encoding='utf-8-sig')
 	# Bestandsnaam voor output in een variabele vastleggen
 	bestandsnaam_output = 'bpost_labels_' + time.strftime("%Y%m%d") + '.csv'
 	# download-button-functie invullen
