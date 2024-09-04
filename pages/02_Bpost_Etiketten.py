@@ -14,7 +14,7 @@ uploaded_file = st.file_uploader("Kies hieronder de Formie-export uit je eigen b
 if uploaded_file is not None:
 	# Can be used wherever a "file-like" object is accepted:
    st.write('Input-bestand:')
-   in_csv = pd.read_csv(uploaded_file, sep=',') #sep checken voor huidige input
+   in_csv = pd.read_csv(uploaded_file, sep=';') #sep checken voor huidige input
    in_csv.index += 1
    st.write(in_csv.style.format())
 
