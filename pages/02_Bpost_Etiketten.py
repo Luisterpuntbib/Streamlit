@@ -3,11 +3,14 @@ import pandas as pd
 import numpy as np
 import time
 
+from navigation import make_sidebar
 import streamlit as st
 
+make_sidebar()
+
 # titel op pagina en in menu instellen
-st.markdown("# Bpost Etiketten ")
-st.sidebar.markdown("# Bpost Etiketten ")
+st.markdown("# ✉️ Bpost Etiketten")
+# st.sidebar.markdown("# Bpost Etiketten ")
 
 # uploadknop en uploaden csv instellen
 uploaded_file = st.file_uploader("Kies hieronder de Formie-export uit je eigen bestanden:")
@@ -75,7 +78,7 @@ if uploaded_file is not None:
 
 # download-knop voor aangepaste csv instellen
 if uploaded_file is not None:
-	out_csv = out_csv.to_csv(sep=';', index=False, encoding='utf-8-sig')
+	out_csv = out_csv.to_csv(sep=';', index=False).encode("utf-8")
 	# Bestandsnaam voor output in een variabele vastleggen
 	bestandsnaam_output = 'bpost_labels_' + time.strftime("%Y%m%d") + '.csv'
 	# download-button-functie invullen
