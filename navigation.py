@@ -16,8 +16,6 @@ def get_current_page_name():
 def make_sidebar():
     with st.sidebar:
         st.title("Luisterpunt")
-        # st.write("")
-        # st.write("")
 
         if st.session_state.get("logged_in", False):
             st.page_link("pages/01_inhoud.py", label="Inhoud", icon="🏠")
