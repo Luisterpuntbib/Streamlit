@@ -1,7 +1,7 @@
 import streamlit as st
 from time import sleep
 from streamlit.runtime.scriptrunner import get_script_run_ctx
-from streamlit.source_util import get_pages
+# from streamlit.source_util import get_pages
 
 
 def get_current_page_name():
@@ -28,10 +28,10 @@ def make_sidebar():
             if st.button("Log out"):
                 logout()
 
-        elif get_current_page_name() != "main_page":
+        # elif get_current_page_name() != "main_page":
             # If anyone tries to access a secret page without being logged in,
             # redirect them to the login page
-            st.switch_page("main_page.py")
+            # st.switch_page("main_page.py")
 
 
 def logout():
