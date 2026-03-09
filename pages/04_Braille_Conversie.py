@@ -16,6 +16,7 @@ import pandas as pd
 import streamlit as st
 
 from brl_conversion import parse_cnv_table_bytes
+from excel_mapping import build_excel_index, parse_excel_mapping_file
 from navigation import make_sidebar
 from pipeline_disk import inspect_input_zip, run_pipeline_disk
 
@@ -60,7 +61,11 @@ def _run_zip_conversion(
 
         progress.progress(15, text="Input ZIP controleren...")
         inspections = inspect_input_zip(input_zip_path)
+        inspection_by_folder = {item["source_folder"]: item for item in inspections}
         folder_count = len(inspections)
+
+        records = parse_excel_mapping_file(excel_path)
+        excel_index = build_excel_index(records)
 
         progress.progress(25, text=f"{folder_count} bronfolders gevonden. Conversie starten...")
 
@@ -93,9 +98,16 @@ def _run_zip_conversion(
         progress.progress(95, text="Resultaten verzamelen...")
         summary_rows: list[dict[str, object]] = []
         for item in pipeline_result.folder_results:
+            inspection = inspection_by_folder.get(item.source_folder, {})
+            lois_id = inspection.get("lois_id")
+            record = excel_index.by_lois_id.get(lois_id) if lois_id else None
+
             summary_rows.append(
                 {
                     "Bronfolder": item.source_folder,
+                    "Boeknummer": record.book_number if record else "",
+                    "Titel": record.title if record else "",
+                    "Outputfolder (boeknummer_titel)": item.output_folder,
                     "Status": item.status,
                     "Geconverteerd": item.converted_count,
                     "Waarschuwingen": " | ".join(item.warnings) if item.warnings else "",
@@ -178,7 +190,17 @@ if st.button("Verwerken", type="primary"):
 
             st.success("Verwerking voltooid.")
             st.subheader("Samenvatting per bronfolder")
-            st.dataframe(pd.DataFrame(summary_rows), use_container_width=True)
+
+            summary_df = pd.DataFrame(summary_rows)
+            st.dataframe(summary_df, use_container_width=True)
+
+            summary_csv = summary_df.to_csv(index=False, sep=";").encode("utf-8")
+            st.download_button(
+                label="Download samenvatting (CSV)",
+                data=summary_csv,
+                file_name="braille_summary.csv",
+                mime="text/csv",
+            )
 
             st.download_button(
                 label="Download output ZIP",
@@ -188,3 +210,4 @@ if st.button("Verwerken", type="primary"):
             )
         except Exception as exc:
             st.error(f"Verwerking mislukt: {exc}")
+
