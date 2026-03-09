@@ -1,6 +1,7 @@
 import streamlit as st
 from time import sleep
 
+
 def make_sidebar():
     with st.sidebar:
         st.title("Luisterpunt")
@@ -10,6 +11,7 @@ def make_sidebar():
             #st.sidebar.page_link("pages/01_inhoud.py", label="Inhoud", icon="🏠")
            # st.sidebar.page_link("pages/02_Bpost_Etiketten.py", label="Bpost Etiketten", icon="✉️")
             st.sidebar.page_link("pages/03_Bpost_Etiketten_Email.py", label="Bpost Etiketten (met e-mail)", icon="📧")
+            st.sidebar.page_link("pages/04_Braille_Conversie.py", label="Braille Conversie", icon="📚")
             #st.sidebar.page_link("pages/page_3.py", label="Pagina 3", icon="🧙")
 
             st.write("")
@@ -18,6 +20,7 @@ def make_sidebar():
         else:
             # Niet ingelogd: geen links tonen (login gebeurt via main_page.py)
             pass
+
 
 def logout():
     st.session_state.logged_in = False

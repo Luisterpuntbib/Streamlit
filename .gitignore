@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# Streamlit secrets
+.streamlit/secrets.toml
+.streamlit/credentials.toml
+
+# Temp/test folders
+.tmp/
+tmp/
+test_input/
+test_output/
+check_ori/
+check_new/
+
+# Generated zip files
+*.zip
+
+# OS files
+Thumbs.db
+.DS_Store
