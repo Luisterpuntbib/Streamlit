@@ -6,35 +6,47 @@ fixed project conversion table, and offers an output ZIP for download.
 
 from __future__ import annotations
 
+import shutil
 import tempfile
+import threading
+import time
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
+from brl_conversion import parse_cnv_table_bytes
 from navigation import make_sidebar
-from pipeline_disk import run_pipeline_disk
+from pipeline_disk import inspect_input_zip, run_pipeline_disk
 
 
-def _run_zip_conversion(input_zip_bytes: bytes, excel_bytes: bytes, cnv_path: Path) -> tuple[bytes, list[dict[str, object]]]:
-    """Run ZIP conversion from uploaded bytes and return output ZIP bytes.
+@st.cache_data(show_spinner=False)
+def _load_conversion_table_cached(cnv_path_str: str) -> dict[int, int]:
+    """Load and parse the fixed conversion table once per app cache cycle."""
 
-    Args:
-        input_zip_bytes: Raw bytes of uploaded input ZIP.
-        excel_bytes: Raw bytes of uploaded Excel mapping file.
-        cnv_path: Path to the fixed `.cnv` conversion table.
-
-    Returns:
-        Tuple ``(output_zip_bytes, summary_rows)`` where ``summary_rows`` is
-        suitable for dataframe rendering.
-
-    Raises:
-        FileNotFoundError: If the conversion table is missing.
-        Exception: Any pipeline-level processing failure.
-    """
-
+    cnv_path = Path(cnv_path_str)
     if not cnv_path.is_file():
         raise FileNotFoundError(f"Conversietabel niet gevonden: {cnv_path}")
+    return parse_cnv_table_bytes(cnv_path.read_bytes())
+
+
+def _save_uploaded_file(uploaded_file: st.runtime.uploaded_file_manager.UploadedFile, destination: Path) -> None:
+    """Write an uploaded file to disk without forcing full in-memory copies."""
+
+    uploaded_file.seek(0)
+    with destination.open("wb") as handle:
+        shutil.copyfileobj(uploaded_file, handle)
+
+
+def _run_zip_conversion(
+    input_zip_file: st.runtime.uploaded_file_manager.UploadedFile,
+    excel_file: st.runtime.uploaded_file_manager.UploadedFile,
+    cnv_path: Path,
+    progress: st.delta_generator.DeltaGenerator,
+) -> tuple[bytes, list[dict[str, object]]]:
+    """Run ZIP conversion from uploaded files and return output ZIP + summary."""
+
+    _ = _load_conversion_table_cached(str(cnv_path.resolve()))
 
     with tempfile.TemporaryDirectory(prefix="braille_streamlit_") as temp_dir:
         temp_root = Path(temp_dir)
@@ -42,16 +54,43 @@ def _run_zip_conversion(input_zip_bytes: bytes, excel_bytes: bytes, cnv_path: Pa
         excel_path = temp_root / "mapping.xlsx"
         output_zip_path = temp_root / "output.zip"
 
-        input_zip_path.write_bytes(input_zip_bytes)
-        excel_path.write_bytes(excel_bytes)
+        progress.progress(5, text="Uploads voorbereiden...")
+        _save_uploaded_file(input_zip_file, input_zip_path)
+        _save_uploaded_file(excel_file, excel_path)
 
-        pipeline_result = run_pipeline_disk(
-            input_zip_path=input_zip_path,
-            excel_path=excel_path,
-            cnv_path=cnv_path,
-            output_zip_path=output_zip_path,
-        )
+        progress.progress(15, text="Input ZIP controleren...")
+        inspections = inspect_input_zip(input_zip_path)
+        folder_count = len(inspections)
 
+        progress.progress(25, text=f"{folder_count} bronfolders gevonden. Conversie starten...")
+
+        result_box: dict[str, object] = {}
+
+        def _pipeline_worker() -> None:
+            result_box["pipeline_result"] = run_pipeline_disk(
+                input_zip_path=input_zip_path,
+                excel_path=excel_path,
+                cnv_path=cnv_path,
+                output_zip_path=output_zip_path,
+            )
+
+        worker = threading.Thread(target=_pipeline_worker, daemon=True)
+        worker.start()
+
+        animated_values = [35, 45, 55, 65, 75, 85]
+        idx = 0
+        while worker.is_alive():
+            progress.progress(
+                animated_values[idx % len(animated_values)],
+                text=f"Bronfolders verwerken... ({folder_count} totaal)",
+            )
+            idx += 1
+            time.sleep(0.25)
+
+        worker.join()
+        pipeline_result = result_box["pipeline_result"]
+
+        progress.progress(95, text="Resultaten verzamelen...")
         summary_rows: list[dict[str, object]] = []
         for item in pipeline_result.folder_results:
             summary_rows.append(
@@ -66,6 +105,7 @@ def _run_zip_conversion(input_zip_bytes: bytes, excel_bytes: bytes, cnv_path: Pa
 
         output_bytes = output_zip_path.read_bytes()
 
+    progress.progress(100, text="Klaar")
     return output_bytes, summary_rows
 
 
@@ -126,12 +166,14 @@ if st.button("Verwerken", type="primary"):
     elif excel_file is None:
         st.error("Upload eerst een Excel-bestand.")
     else:
+        progress = st.progress(0, text="Starten...")
         try:
             cnv_path = Path(__file__).resolve().parents[1] / "brl2brf.cnv"
             output_bytes, summary_rows = _run_zip_conversion(
-                input_zip_bytes=input_zip.getvalue(),
-                excel_bytes=excel_file.getvalue(),
+                input_zip_file=input_zip,
+                excel_file=excel_file,
                 cnv_path=cnv_path,
+                progress=progress,
             )
 
             st.success("Verwerking voltooid.")
