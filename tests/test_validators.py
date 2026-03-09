@@ -68,16 +68,49 @@ class ValidatorsTests(unittest.TestCase):
             errors = validate_source_folder(folder)
             self.assertTrue(any("Inconsistente Lois ID tussen inputbronnen" in err for err in errors))
 
-    def test_determine_lois_id_uses_input_sources_as_truth(self) -> None:
+    def test_xml_content_is_ignored_for_lois_derivation(self) -> None:
         with TemporaryDirectory() as tmp:
             folder = Path(tmp) / "374170_1_1"
             folder.mkdir()
-            (folder / "meta374170.xml").write_text("<root><id>t378531</id></root>", encoding="utf-8")
+            (folder / "meta374170.xml").write_text("<root><lois_id>t378531</lois_id></root>", encoding="utf-8")
             (folder / "p374170_001.brl").write_bytes(b"a")
 
             lois_id, errors = determine_lois_id_and_consistency(folder)
             self.assertEqual(lois_id, "374170")
-            self.assertTrue(any("xml_content=378531" in err for err in errors))
+            self.assertEqual(errors, [])
+
+    def test_xml_title_digits_herscht_are_not_treated_as_lois_id(self) -> None:
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "379230_1_1"
+            folder.mkdir()
+            (folder / "meta379230.xml").write_text("<root><title>Herscht 07769</title></root>", encoding="utf-8")
+            (folder / "p379230_001.brl").write_bytes(b"a")
+
+            lois_id, errors = determine_lois_id_and_consistency(folder)
+            self.assertEqual(lois_id, "379230")
+            self.assertEqual(errors, [])
+
+    def test_xml_title_digits_project_are_not_treated_as_lois_id(self) -> None:
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "379230_1_1"
+            folder.mkdir()
+            (folder / "meta379230.xml").write_text("<root><title>Project 2024</title></root>", encoding="utf-8")
+            (folder / "p379230_001.brl").write_bytes(b"a")
+
+            lois_id, errors = determine_lois_id_and_consistency(folder)
+            self.assertEqual(lois_id, "379230")
+            self.assertEqual(errors, [])
+
+    def test_xml_title_digits_volume_are_not_treated_as_lois_id(self) -> None:
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "379230_1_1"
+            folder.mkdir()
+            (folder / "meta379230.xml").write_text("<root><title>Volume 3</title></root>", encoding="utf-8")
+            (folder / "p379230_001.brl").write_bytes(b"a")
+
+            lois_id, errors = determine_lois_id_and_consistency(folder)
+            self.assertEqual(lois_id, "379230")
+            self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

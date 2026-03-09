@@ -1,13 +1,12 @@
 """Validation helpers for one source folder.
 
 This module validates file presence, BRL naming rules and Lois ID consistency
-across multiple sources.
+across multiple reliable sources.
 """
 
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from braille_models import ProcessingLimits
@@ -16,7 +15,6 @@ from excel_mapping import normalize_lois_id
 
 LOIS_ID_PATTERN = re.compile(r"(?i)t?\d{5,}")
 INPUT_SOURCES = ("folder_name", "xml_filename", "brl_filenames")
-ALL_SOURCES = ("folder_name", "xml_filename", "brl_filenames", "xml_content")
 
 
 def list_xml_files(source_folder: Path) -> list[Path]:
@@ -46,37 +44,20 @@ def _extract_lois_ids_from_text(value: str) -> list[str]:
     return ids
 
 
-def _extract_lois_ids_from_xml_content(xml_path: Path) -> list[str]:
-    try:
-        root = ET.parse(xml_path).getroot()
-    except Exception:
-        return []
-
-    ids: list[str] = []
-    for element in root.iter():
-        ids.extend(_extract_lois_ids_from_text(element.tag.split("}")[-1]))
-        ids.extend(_extract_lois_ids_from_text(element.text or ""))
-        for attr_name, attr_value in element.attrib.items():
-            ids.extend(_extract_lois_ids_from_text(attr_name))
-            ids.extend(_extract_lois_ids_from_text(attr_value or ""))
-
-    return ids
-
-
 def collect_lois_id_sources(
     source_folder: Path,
     xml_files: list[Path] | None = None,
     brl_files: list[Path] | None = None,
 ) -> dict[str, list[str]]:
-    """Collect candidate Lois IDs from folder and file names (and XML content).
+    """Collect candidate Lois IDs from reliable filename-based sources only.
 
-    Args:
-        source_folder: Folder being validated.
-        xml_files: Optional pre-discovered XML files to reuse.
-        brl_files: Optional pre-discovered BRL files to reuse.
+    Reliable sources:
+    - source folder name
+    - XML filename
+    - BRL filenames
 
-    Returns:
-        Dict with Lois ID candidates per source channel.
+    XML content is intentionally ignored to avoid false positives from numeric
+    text in titles or other free-text fields.
     """
 
     xml_files = list_xml_files(source_folder) if xml_files is None else xml_files
@@ -86,12 +67,10 @@ def collect_lois_id_sources(
         "folder_name": _extract_lois_ids_from_text(source_folder.name),
         "xml_filename": [],
         "brl_filenames": [],
-        "xml_content": [],
     }
 
     if len(xml_files) == 1:
         by_source["xml_filename"] = _extract_lois_ids_from_text(xml_files[0].stem)
-        by_source["xml_content"] = _extract_lois_ids_from_xml_content(xml_files[0])
 
     for brl_file in brl_files:
         by_source["brl_filenames"].extend(_extract_lois_ids_from_text(brl_file.stem))
@@ -106,18 +85,11 @@ def determine_lois_id_and_consistency(
 ) -> tuple[str | None, list[str]]:
     """Determine one Lois ID and report inconsistencies.
 
-    Truth source priority is based on input sources:
+    Truth source priority is:
     folder name -> XML filename -> BRL filenames.
-    XML content is only used as an extra consistency check.
-
-    Args:
-        source_folder: Folder being evaluated.
-        xml_files: Optional pre-discovered XML files.
-        brl_files: Optional pre-discovered BRL files.
 
     Returns:
-        Tuple of ``(resolved_lois_id, errors)``. ``resolved_lois_id`` can be
-        ``None`` when no usable input Lois ID is found.
+        Tuple ``(resolved_lois_id, errors)``.
     """
 
     by_source = collect_lois_id_sources(source_folder, xml_files=xml_files, brl_files=brl_files)
@@ -146,7 +118,7 @@ def determine_lois_id_and_consistency(
         )
         return None, errors
 
-    for source_name in ALL_SOURCES:
+    for source_name in INPUT_SOURCES:
         values = sorted(source_uniques[source_name])
         if values and values[0] != reference_id:
             errors.append(
@@ -165,14 +137,7 @@ def validate_source_folder(source_folder: Path, limits: ProcessingLimits | None 
     - at least one BRL file
     - each BRL filename must match ``*_NNN.brl``
     - optional BRL count limit from ``ProcessingLimits``
-    - Lois ID consistency across source channels
-
-    Args:
-        source_folder: Folder to validate.
-        limits: Optional processing limits.
-
-    Returns:
-        List of validation error messages. Empty list means valid.
+    - Lois ID consistency across reliable filename-based sources
     """
 
     errors: list[str] = []
