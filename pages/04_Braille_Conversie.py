@@ -15,6 +15,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from braille_models import ProcessingLimits
 from brl_conversion import parse_cnv_table_bytes
 from excel_mapping import build_excel_index, parse_excel_mapping_file
 from navigation import make_sidebar
@@ -39,11 +40,19 @@ def _save_uploaded_file(uploaded_file: st.runtime.uploaded_file_manager.Uploaded
         shutil.copyfileobj(uploaded_file, handle)
 
 
+def _clear_conversion_state() -> None:
+    """Clear stored conversion results from session state."""
+
+    st.session_state.braille_summary_rows = None
+    st.session_state.braille_output_bytes = None
+
+
 def _run_zip_conversion(
     input_zip_file: st.runtime.uploaded_file_manager.UploadedFile,
     excel_file: st.runtime.uploaded_file_manager.UploadedFile,
     cnv_path: Path,
     progress: st.delta_generator.DeltaGenerator,
+    max_source_folders: int,
 ) -> tuple[bytes, list[dict[str, object]]]:
     """Run ZIP conversion from uploaded files and return output ZIP + summary."""
 
@@ -72,12 +81,16 @@ def _run_zip_conversion(
         result_box: dict[str, object] = {}
 
         def _pipeline_worker() -> None:
-            result_box["pipeline_result"] = run_pipeline_disk(
-                input_zip_path=input_zip_path,
-                excel_path=excel_path,
-                cnv_path=cnv_path,
-                output_zip_path=output_zip_path,
-            )
+            try:
+                result_box["pipeline_result"] = run_pipeline_disk(
+                    input_zip_path=input_zip_path,
+                    excel_path=excel_path,
+                    cnv_path=cnv_path,
+                    output_zip_path=output_zip_path,
+                    limits=ProcessingLimits(max_source_folders=max_source_folders),
+                )
+            except Exception as exc:
+                result_box["error"] = exc
 
         worker = threading.Thread(target=_pipeline_worker, daemon=True)
         worker.start()
@@ -93,6 +106,13 @@ def _run_zip_conversion(
             time.sleep(0.25)
 
         worker.join()
+
+        if "error" in result_box:
+            raise result_box["error"]
+
+        if "pipeline_result" not in result_box:
+            raise RuntimeError("Verwerking mislukt: pipeline gaf geen resultaat terug.")
+
         pipeline_result = result_box["pipeline_result"]
 
         progress.progress(95, text="Resultaten verzamelen...")
@@ -167,8 +187,23 @@ with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
         """
     )
 
+# Persist conversion results across reruns (e.g. clicking download buttons).
+if "braille_summary_rows" not in st.session_state:
+    st.session_state.braille_summary_rows = None
+if "braille_output_bytes" not in st.session_state:
+    st.session_state.braille_output_bytes = None
+
 input_zip = st.file_uploader("Input ZIP", type=["zip"])
 excel_file = st.file_uploader("Excel mapping", type=["xlsx", "xls"])
+
+max_source_folders = st.number_input(
+    "Maximum aantal bronfolders",
+    min_value=1,
+    max_value=5000,
+    value=150,
+    step=1,
+    help="Verhoog dit als je input-ZIP meer dan 150 bronfolders bevat.",
+)
 
 if st.button("Verwerken", type="primary"):
     if input_zip is None and excel_file is None:
@@ -186,28 +221,44 @@ if st.button("Verwerken", type="primary"):
                 excel_file=excel_file,
                 cnv_path=cnv_path,
                 progress=progress,
+                max_source_folders=int(max_source_folders),
             )
 
+            st.session_state.braille_summary_rows = summary_rows
+            st.session_state.braille_output_bytes = output_bytes
             st.success("Verwerking voltooid.")
-            st.subheader("Samenvatting per bronfolder")
-
-            summary_df = pd.DataFrame(summary_rows)
-            st.dataframe(summary_df, use_container_width=True)
-
-            summary_csv = summary_df.to_csv(index=False, sep=";").encode("utf-8")
-            st.download_button(
-                label="Download samenvatting (CSV)",
-                data=summary_csv,
-                file_name="braille_summary.csv",
-                mime="text/csv",
-            )
-
-            st.download_button(
-                label="Download output ZIP",
-                data=output_bytes,
-                file_name="braille_output.zip",
-                mime="application/zip",
-            )
         except Exception as exc:
             st.error(f"Verwerking mislukt: {exc}")
+
+if st.session_state.braille_summary_rows and st.session_state.braille_output_bytes:
+    st.subheader("Samenvatting per bronfolder")
+
+    summary_df = pd.DataFrame(st.session_state.braille_summary_rows)
+    st.dataframe(summary_df, width="stretch")
+
+    summary_csv = summary_df.to_csv(index=False, sep=";").encode("utf-8")
+    st.download_button(
+        label="Download samenvatting (CSV)",
+        data=summary_csv,
+        file_name="braille_summary.csv",
+        mime="text/csv",
+    )
+
+    st.download_button(
+        label="Download output ZIP",
+        data=st.session_state.braille_output_bytes,
+        file_name="braille_output.zip",
+        mime="application/zip",
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Nieuwe conversie"):
+            _clear_conversion_state()
+            st.rerun()
+    with col2:
+        if st.button("Terug naar inhoud"):
+            _clear_conversion_state()
+            st.switch_page("pages/01_inhoud.py")
+
 
