@@ -53,7 +53,6 @@ def _run_zip_conversion(
     excel_file: st.runtime.uploaded_file_manager.UploadedFile,
     cnv_path: Path,
     progress: st.delta_generator.DeltaGenerator,
-    max_source_folders: int,
 ) -> tuple[bytes, list[dict[str, object]]]:
     """Run ZIP conversion from uploaded files and return output ZIP + summary."""
 
@@ -88,7 +87,7 @@ def _run_zip_conversion(
                     excel_path=excel_path,
                     cnv_path=cnv_path,
                     output_zip_path=output_zip_path,
-                    limits=ProcessingLimits(max_source_folders=max_source_folders),
+                    limits=ProcessingLimits(max_source_folders=max(folder_count, 1)),
                 )
             except Exception as exc:
                 result_box["error"] = exc
@@ -143,7 +142,7 @@ def _run_zip_conversion(
 
 
 make_sidebar()
-st.markdown("# 📚 Braille Conversie")
+st.markdown("# 📚 Braille Conversie Dedicon Luisterpunt")
 st.write(
     "Met deze pagina zet je braillebronbestanden om naar een output-ZIP die je direct kunt downloaden. "
     "Je uploadt één input-ZIP en één Excel-bestand."
@@ -200,16 +199,21 @@ uploader_version = st.session_state.braille_uploader_version
 input_zip = st.file_uploader("Input ZIP", type=["zip"], key=f"braille_input_zip_{uploader_version}")
 excel_file = st.file_uploader("Excel mapping", type=["xlsx", "xls"], key=f"braille_excel_file_{uploader_version}")
 
-max_source_folders = st.number_input(
-    "Maximum aantal bronfolders",
-    min_value=1,
-    max_value=5000,
-    value=150,
-    step=1,
-    help="Verhoog dit als je input-ZIP meer dan 150 bronfolders bevat.",
-)
+if input_zip is not None:
+    size_mb = input_zip.size / (1024 * 1024)
+    st.success(f"Bron-ZIP geladen: `{input_zip.name}` ({size_mb:.2f} MB).")
+    st.info("Bronbestanden ingeladen.")
 
-if st.button("Verwerken", type="primary"):
+if input_zip is None and excel_file is None:
+    st.warning("Upload een input-ZIP en een Excel-bestand om te kunnen verwerken.")
+elif input_zip is None:
+    st.warning("Input-ZIP ontbreekt.")
+elif excel_file is None:
+    st.warning("Excel-bestand ontbreekt.")
+else:
+    st.success("Alle vereiste bestanden zijn geladen. Je kunt nu verwerken.")
+
+if st.button("Verwerken", type="primary", disabled=(input_zip is None or excel_file is None)):
     if input_zip is None and excel_file is None:
         st.error("Upload eerst een input-ZIP en een Excel-bestand.")
     elif input_zip is None:
@@ -225,7 +229,6 @@ if st.button("Verwerken", type="primary"):
                 excel_file=excel_file,
                 cnv_path=cnv_path,
                 progress=progress,
-                max_source_folders=int(max_source_folders),
             )
 
             st.session_state.braille_summary_rows = summary_rows
