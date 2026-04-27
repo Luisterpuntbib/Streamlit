@@ -29,7 +29,7 @@ def make_sidebar():
             st.sidebar.page_link(
                 "pages/04_Braille_Conversie.py",
                 label="Braille Conversie Dedicon_Luisterpunt (BRL--> BRF)",
-                icon="⠃",
+                icon="📚",
             )
             #st.sidebar.page_link("pages/page_3.py", label="Pagina 3", icon="🧙")
 
@@ -46,3 +46,4 @@ def logout():
     st.info("Logged out successfully!")
     sleep(0.5)
     st.switch_page("main_page.py")
+
