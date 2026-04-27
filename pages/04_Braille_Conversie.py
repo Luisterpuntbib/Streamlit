@@ -41,10 +41,11 @@ def _save_uploaded_file(uploaded_file: st.runtime.uploaded_file_manager.Uploaded
 
 
 def _clear_conversion_state() -> None:
-    """Clear stored conversion results from session state."""
+    """Clear stored conversion results and force fresh uploader widgets."""
 
     st.session_state.braille_summary_rows = None
     st.session_state.braille_output_bytes = None
+    st.session_state.braille_uploader_version = st.session_state.get("braille_uploader_version", 0) + 1
 
 
 def _run_zip_conversion(
@@ -192,9 +193,12 @@ if "braille_summary_rows" not in st.session_state:
     st.session_state.braille_summary_rows = None
 if "braille_output_bytes" not in st.session_state:
     st.session_state.braille_output_bytes = None
+if "braille_uploader_version" not in st.session_state:
+    st.session_state.braille_uploader_version = 0
 
-input_zip = st.file_uploader("Input ZIP", type=["zip"])
-excel_file = st.file_uploader("Excel mapping", type=["xlsx", "xls"])
+uploader_version = st.session_state.braille_uploader_version
+input_zip = st.file_uploader("Input ZIP", type=["zip"], key=f"braille_input_zip_{uploader_version}")
+excel_file = st.file_uploader("Excel mapping", type=["xlsx", "xls"], key=f"braille_excel_file_{uploader_version}")
 
 max_source_folders = st.number_input(
     "Maximum aantal bronfolders",
@@ -260,5 +264,3 @@ if st.session_state.braille_summary_rows and st.session_state.braille_output_byt
         if st.button("Terug naar inhoud"):
             _clear_conversion_state()
             st.switch_page("pages/01_inhoud.py")
-
-
