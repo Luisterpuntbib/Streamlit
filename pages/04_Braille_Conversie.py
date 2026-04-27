@@ -143,7 +143,7 @@ def _run_zip_conversion(
 
 
 make_sidebar()
-st.markdown("# ⠃ Braille Conversie")
+st.markdown("# 📚 Braille Conversie")
 st.write(
     "Met deze pagina zet je braillebronbestanden om naar een output-ZIP die je direct kunt downloaden. "
     "Je uploadt één input-ZIP en één Excel-bestand."
