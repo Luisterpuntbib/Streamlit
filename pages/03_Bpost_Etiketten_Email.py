@@ -66,7 +66,7 @@ def convert_df(in_csv: pd.DataFrame) -> pd.DataFrame:
     # standaardinfo verzending — IDENTIEK
     info_LP = {
         'ProductId': 'BPACK24h', 'Country': 'BE', 'Sender Name': 'Luisterpuntbibliotheek vzw',
-        'Sender Street': 'Broekstraat', 'Sender Street Number': '49-53', 'Sender Postal Code': 1000,
+        'Sender Street': 'Koning Albert 2-laan', 'Sender Street Number': '37', 'Sender Postal Code': 1030,
         'Sender City': 'Brussel', 'Signature': 'N', 'Insurance': 'N',
         'Automatic Second Presentation': 'N', 'Info Reminder': 'N',
         'Info Next Day': 'N', 'Info Distributed': 'N', 'Saturday Delivery': 'N'
