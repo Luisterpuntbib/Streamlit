@@ -2,6 +2,20 @@ import streamlit as st
 from time import sleep
 
 def make_sidebar():
+    st.markdown(
+        """
+        <style>
+            @media (min-width: 769px) {
+                section[data-testid="stSidebar"],
+                section[data-testid="stSidebar"] > div {
+                    width: 360px !important;
+                }
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     with st.sidebar:
         st.title("Luisterpunt")
 
