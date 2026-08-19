@@ -25,6 +25,9 @@ class FolderResult:
     source_folder: str
     output_folder: str
     status: str
+    lois_id: str = ""
+    book_number: str = ""
+    title: str = ""
     converted_count: int = 0
     warnings: list[str] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)

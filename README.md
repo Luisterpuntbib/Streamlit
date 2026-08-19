@@ -27,7 +27,7 @@ input.zip
     meta374170.xml
     p374170_001.brl
     p374170_002.brl
-  380532_1_1/
+  63773_voorrang/
     meta380532.xml
     p380532_001.brl
 ```
@@ -36,6 +36,9 @@ Regels per bronfolder:
 - exact 1 XML-bestand
 - 1 of meer `.brl`-bestanden
 - `.brl`-bestandsnamen volgen patroon `*_NNN.brl`
+- oude levering: foldernummer is de Lois ID uit kolom C
+- nieuwe levering: foldernummer is het Belgische boeknummer uit kolom E
+- XML- en BRL-bestandsnamen bevatten in beide vormen de Lois ID uit kolom C
 
 ### Excel-kolommen
 
@@ -44,6 +47,12 @@ Regels per bronfolder:
 - Kolom E = doel boeknummer
 
 Lois ID wordt genormaliseerd voor matching (trim, lowercase, optionele `t`-prefix weg, daarna numerieke waarde).
+
+De pipeline ondersteunt twee koppelvormen:
+- foldernummer matcht kolom C; XML/BRL moeten dezelfde Lois ID bevatten
+- foldernummer matcht kolom E; XML/BRL moeten kolom C van diezelfde Excel-rij bevatten
+
+Een verschil tussen de Lois ID in XML/BRL en kolom C levert een foutfolder met `error_report.txt` op.
 
 ### Outputnaamgeving
 

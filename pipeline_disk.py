@@ -15,7 +15,12 @@ from braille_models import PipelineResult, ProcessingLimits
 from brl_conversion import parse_cnv_table_bytes
 from excel_mapping import build_excel_index, parse_excel_mapping_file
 from folder_processor import process_source_folder
-from validators import determine_lois_id_and_consistency, list_brl_files, list_xml_files
+from validators import (
+    determine_file_lois_id_and_consistency,
+    determine_folder_identifier,
+    list_brl_files,
+    list_xml_files,
+)
 
 
 def _safe_extract_zip(zip_path: Path, destination: Path) -> None:
@@ -84,12 +89,18 @@ def inspect_input_zip(input_zip_path: Path) -> list[dict[str, object]]:
         for source_folder in _discover_top_level_source_folders(input_root):
             xml_files = list_xml_files(source_folder)
             brl_files = list_brl_files(source_folder)
-            lois_id, errors = determine_lois_id_and_consistency(source_folder, xml_files=xml_files, brl_files=brl_files)
+            folder_identifier, folder_errors = determine_folder_identifier(source_folder)
+            lois_id, errors = determine_file_lois_id_and_consistency(
+                source_folder,
+                xml_files=xml_files,
+                brl_files=brl_files,
+            )
             inspections.append(
                 {
                     "source_folder": source_folder.name,
+                    "folder_identifier": folder_identifier,
                     "lois_id": lois_id,
-                    "errors": errors,
+                    "errors": folder_errors + errors,
                 }
             )
 

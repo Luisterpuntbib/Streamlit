@@ -9,13 +9,14 @@ from __future__ import annotations
 from pathlib import Path
 import shutil
 
-from braille_models import FolderResult, ProcessingLimits
+from braille_models import BookRecord, FolderResult, ProcessingLimits
 from brl_conversion import convert_brl_file_to_brf_file, extract_volume_suffix
 from excel_mapping import ExcelIndex, normalize_lois_id
 from naming_rules import make_output_brf_name, make_output_folder_name, make_output_xml_name, sanitize_path_name
 from reporting import build_excel_no_match_report, write_error_report
 from validators import (
-    determine_lois_id_and_consistency,
+    determine_file_lois_id_and_consistency,
+    determine_folder_identifier,
     list_brl_files,
     list_xml_files,
     validate_source_folder,
@@ -34,7 +35,7 @@ def infer_lois_id(source_folder: Path, xml_path: Path | None, brl_files: list[Pa
         Normalized Lois ID or ``None`` when no usable value is found.
     """
 
-    lois_id, _ = determine_lois_id_and_consistency(
+    lois_id, _ = determine_file_lois_id_and_consistency(
         source_folder,
         xml_files=[xml_path] if xml_path is not None else [],
         brl_files=brl_files,
@@ -59,6 +60,56 @@ def resolve_book_record(lois_id: str | None, excel_index: ExcelIndex):
     if not normalized:
         return None
     return excel_index.by_lois_id.get(normalized)
+
+
+def resolve_input_book_record(
+    folder_identifier: str | None,
+    file_lois_id: str | None,
+    excel_index: ExcelIndex,
+) -> tuple[BookRecord | None, list[str]]:
+    """Resolve old and new delivery identifiers to one Excel record.
+
+    Legacy folders use the Lois ID from Excel column C in their folder name.
+    New folders use the Belgian book number from column E. In both formats,
+    XML and BRL filenames must contain the Lois ID from column C.
+    """
+
+    normalized_folder = normalize_lois_id(folder_identifier)
+    normalized_file_lois = normalize_lois_id(file_lois_id)
+
+    by_book = excel_index.by_book_number.get(normalized_folder) if normalized_folder else None
+    by_lois = excel_index.by_lois_id.get(normalized_folder) if normalized_folder else None
+
+    if by_book is not None and by_lois is not None and by_book != by_lois:
+        return None, [
+            f"Foldernummer {normalized_folder} is dubbelzinnig: het matcht zowel Excel kolom C "
+            "als kolom E op verschillende rijen."
+        ]
+
+    book = by_book or by_lois
+    if book is None and not normalized_folder:
+        book = excel_index.by_lois_id.get(normalized_file_lois) if normalized_file_lois else None
+
+    if book is None:
+        if normalized_folder and normalized_folder != normalized_file_lois:
+            return None, [
+                "Geen Excel-match voor het nummer uit de bronfolder.",
+                f"Gevonden foldernummer: {normalized_folder}",
+                "Verwacht een match met Lois ID (kolom C) of boeknummer (kolom E).",
+                f"Gevonden Lois ID in XML/BRL: {normalized_file_lois or 'onbekend'}",
+            ]
+        return None, build_excel_no_match_report(normalized_file_lois or normalized_folder, excel_index)
+
+    if normalized_file_lois != book.lois_id:
+        return book, [
+            "Lois ID in XML/BRL komt niet overeen met Excel kolom C.",
+            f"Gevonden foldernummer: {normalized_folder or 'onbekend'}",
+            f"Gevonden Lois ID in XML/BRL: {normalized_file_lois or 'onbekend'}",
+            f"Excel rij {book.excel_row}, kolom C: {book.lois_id}",
+            f"Excel rij {book.excel_row}, kolom E: {book.book_number}",
+        ]
+
+    return book, []
 
 
 def process_source_folder(
@@ -107,7 +158,11 @@ def process_source_folder(
     xml_path = list_xml_files(source_folder)[0]
     brl_files = list_brl_files(source_folder)
 
-    lois_id, lois_errors = determine_lois_id_and_consistency(source_folder, xml_files=[xml_path], brl_files=brl_files)
+    lois_id, lois_errors = determine_file_lois_id_and_consistency(
+        source_folder,
+        xml_files=[xml_path],
+        brl_files=brl_files,
+    )
     if lois_errors:
         fallback_name = sanitize_path_name(f"{source_folder.name}_error")
         output_folder = output_root / fallback_name
@@ -120,20 +175,39 @@ def process_source_folder(
             errors=lois_errors,
         )
 
-    book = resolve_book_record(lois_id, excel_index)
-
-    if book is None:
+    folder_identifier, folder_errors = determine_folder_identifier(source_folder)
+    if folder_errors:
         fallback_name = sanitize_path_name(f"{source_folder.name}_error")
         output_folder = output_root / fallback_name
         output_folder.mkdir(parents=True, exist_ok=True)
-        mismatch_lines = build_excel_no_match_report(lois_id, excel_index)
-        write_error_report(output_folder, mismatch_lines)
+        write_error_report(output_folder, folder_errors)
         return FolderResult(
             source_folder=source_folder.name,
             output_folder=fallback_name,
             status="error",
-            errors=mismatch_lines,
+            lois_id=lois_id or "",
+            errors=folder_errors,
         )
+
+    book, match_errors = resolve_input_book_record(folder_identifier, lois_id, excel_index)
+
+    if match_errors:
+        fallback_name = sanitize_path_name(f"{source_folder.name}_error")
+        output_folder = output_root / fallback_name
+        output_folder.mkdir(parents=True, exist_ok=True)
+        write_error_report(output_folder, match_errors)
+        return FolderResult(
+            source_folder=source_folder.name,
+            output_folder=fallback_name,
+            status="error",
+            lois_id=lois_id or "",
+            book_number=book.book_number if book else "",
+            title=book.title if book else "",
+            errors=match_errors,
+        )
+
+    if book is None:
+        raise RuntimeError("Boekrecord ontbreekt zonder gerapporteerde matchfout.")
 
     output_folder_name = make_output_folder_name(book.book_number, book.title_slug)
     output_folder = output_root / output_folder_name
@@ -162,6 +236,9 @@ def process_source_folder(
         source_folder=source_folder.name,
         output_folder=output_folder_name,
         status=status,
+        lois_id=lois_id or "",
+        book_number=book.book_number,
+        title=book.title,
         converted_count=converted_count,
         errors=errors,
     )

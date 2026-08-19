@@ -52,6 +52,56 @@ class FolderProcessorTests(unittest.TestCase):
             self.assertTrue((folder / "63773_001_Aan_mij_heb_je_niks.brf").exists())
             self.assertEqual((folder / "63773_meta_Aan_mij_heb_je_niks.xml").read_text(encoding="utf-8"), xml_content)
 
+    def test_process_source_folder_with_book_number_in_folder_name(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "63773_voorrang"
+            output = root / "out"
+            source.mkdir()
+            output.mkdir()
+
+            xml_content = "<boek><meta>ongewijzigd</meta></boek>"
+            (source / "meta374170.xml").write_text(xml_content, encoding="utf-8")
+            (source / "p374170_001.brl").write_bytes(bytes([1, 2]))
+
+            result = process_source_folder(
+                source_folder=source,
+                output_root=output,
+                excel_index=self._build_excel_index_for_correct_match(),
+                conversion_table={1: 65, 2: 66},
+            )
+
+            self.assertEqual(result.status, "success")
+            self.assertEqual(result.book_number, "63773")
+            self.assertEqual(result.lois_id, "374170")
+            folder = output / result.output_folder
+            self.assertTrue((folder / "63773_001_Aan_mij_heb_je_niks.brf").exists())
+            self.assertEqual((folder / "63773_meta_Aan_mij_heb_je_niks.xml").read_text(encoding="utf-8"), xml_content)
+
+    def test_reports_excel_column_c_mismatch_for_book_number_folder(self) -> None:
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "70001_voorrang"
+            output = root / "out"
+            source.mkdir()
+            output.mkdir()
+
+            (source / "meta378531.xml").write_text("<boek/>", encoding="utf-8")
+            (source / "p378531_001.brl").write_bytes(b"x")
+
+            result = process_source_folder(
+                source_folder=source,
+                output_root=output,
+                excel_index=self._build_excel_index_typo_case(),
+                conversion_table={1: 65},
+            )
+
+            self.assertEqual(result.status, "error")
+            self.assertEqual(result.book_number, "70001")
+            self.assertTrue(any("Lois ID in XML/BRL komt niet overeen" in err for err in result.errors))
+            self.assertTrue(any("Gevonden Lois ID in XML/BRL: 378531" in err for err in result.errors))
+            self.assertTrue(any("Excel rij 2, kolom C: 378851" in err for err in result.errors))
+
     def test_process_source_folder_excel_typo_suggestion(self) -> None:
         with TemporaryDirectory() as tmp:
             root = Path(tmp)

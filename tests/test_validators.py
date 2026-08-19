@@ -66,7 +66,18 @@ class ValidatorsTests(unittest.TestCase):
             (folder / "p374170_001.brl").write_bytes(b"a")
 
             errors = validate_source_folder(folder)
-            self.assertTrue(any("Inconsistente Lois ID tussen inputbronnen" in err for err in errors))
+            self.assertTrue(any("Inconsistente Lois ID tussen XML- en BRL-bestandsnamen" in err for err in errors))
+
+    def test_accepts_belgian_book_number_in_folder_name(self) -> None:
+        with TemporaryDirectory() as tmp:
+            folder = Path(tmp) / "63773_voorrang"
+            folder.mkdir()
+            (folder / "meta374170.xml").write_text("<root/>", encoding="utf-8")
+            (folder / "p374170_001.brl").write_bytes(b"a")
+
+            errors = validate_source_folder(folder)
+
+            self.assertEqual(errors, [])
 
     def test_xml_content_is_ignored_for_lois_derivation(self) -> None:
         with TemporaryDirectory() as tmp:

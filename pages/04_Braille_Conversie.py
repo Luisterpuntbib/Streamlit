@@ -125,8 +125,8 @@ def _run_zip_conversion(
             summary_rows.append(
                 {
                     "Bronfolder": item.source_folder,
-                    "Boeknummer": record.book_number if record else "",
-                    "Titel": record.title if record else "",
+                    "Boeknummer": item.book_number or (record.book_number if record else ""),
+                    "Titel": item.title or (record.title if record else ""),
                     "Outputfolder (boeknummer_titel)": item.output_folder,
                     "Status": item.status,
                     "Geconverteerd": item.converted_count,
@@ -160,9 +160,16 @@ with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
 - Elke bronfolder bevat:
   - exact **1 XML-bestand**
   - **1 of meer `.brl`-bestanden**
-- Voorbeeld:
+- De foldernaam mag beginnen met:
+  - de **Lois ID uit kolom C** (oude levering), of
+  - het **Belgische boeknummer uit kolom E** (nieuwe levering).
+- Voorbeeld oude levering:
   - `374170_1_1/meta374170.xml`
   - `374170_1_1/p374170_001.brl`
+- Voorbeeld nieuwe levering:
+  - `63773_voorrang/meta374170.xml`
+  - `63773_voorrang/p374170_001.brl`
+- XML- en BRL-bestandsnamen blijven altijd de Lois ID uit kolom C bevatten.
 
 **Welke Excel-kolommen worden gebruikt?**
 - **Kolom B** = titel
@@ -183,7 +190,8 @@ with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
 - "exact 1 XML-bestand": er ontbreekt XML of er staan er meerdere in een bronfolder.
 - "minstens 1 .brl-bestand": er staan geen `.brl`-bestanden in een bronfolder.
 - "Geen Excel-match op Lois ID": de Lois ID uit de input is niet teruggevonden in Excel kolom C.
-- "Inconsistente Lois ID": de Lois ID in map-/bestandsnamen komt niet overeen binnen dezelfde bronfolder.
+- "Lois ID in XML/BRL komt niet overeen": de bestandsnamen passen niet bij kolom C van de Excel-rij.
+- "Geen Excel-match voor het nummer uit de bronfolder": het foldernummer staat niet in kolom C of E.
         """
     )
 
