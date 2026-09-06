@@ -1,7 +1,7 @@
 """Streamlit page for ZIP-based Braille conversion.
 
-This page uploads input ZIP + Excel mapping, runs the disk pipeline with the
-fixed project conversion table, and offers an output ZIP for download.
+This page uploads one input ZIP, reads book metadata from each source XML,
+runs the disk pipeline, and offers an output ZIP for download.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ import streamlit as st
 
 from braille_models import ProcessingLimits
 from brl_conversion import parse_cnv_table_bytes
-from excel_mapping import build_excel_index, parse_excel_mapping_file
 from navigation import make_sidebar
 from pipeline_disk import inspect_input_zip, run_pipeline_disk
 
@@ -50,7 +49,6 @@ def _clear_conversion_state() -> None:
 
 def _run_zip_conversion(
     input_zip_file: st.runtime.uploaded_file_manager.UploadedFile,
-    excel_file: st.runtime.uploaded_file_manager.UploadedFile,
     cnv_path: Path,
     progress: st.delta_generator.DeltaGenerator,
 ) -> tuple[bytes, list[dict[str, object]]]:
@@ -61,20 +59,14 @@ def _run_zip_conversion(
     with tempfile.TemporaryDirectory(prefix="braille_streamlit_") as temp_dir:
         temp_root = Path(temp_dir)
         input_zip_path = temp_root / "input.zip"
-        excel_path = temp_root / "mapping.xlsx"
         output_zip_path = temp_root / "output.zip"
 
         progress.progress(5, text="Uploads voorbereiden...")
         _save_uploaded_file(input_zip_file, input_zip_path)
-        _save_uploaded_file(excel_file, excel_path)
 
         progress.progress(15, text="Input ZIP controleren...")
         inspections = inspect_input_zip(input_zip_path)
-        inspection_by_folder = {item["source_folder"]: item for item in inspections}
         folder_count = len(inspections)
-
-        records = parse_excel_mapping_file(excel_path)
-        excel_index = build_excel_index(records)
 
         progress.progress(25, text=f"{folder_count} bronfolders gevonden. Conversie starten...")
 
@@ -84,7 +76,6 @@ def _run_zip_conversion(
             try:
                 result_box["pipeline_result"] = run_pipeline_disk(
                     input_zip_path=input_zip_path,
-                    excel_path=excel_path,
                     cnv_path=cnv_path,
                     output_zip_path=output_zip_path,
                     limits=ProcessingLimits(max_source_folders=max(folder_count, 1)),
@@ -118,15 +109,12 @@ def _run_zip_conversion(
         progress.progress(95, text="Resultaten verzamelen...")
         summary_rows: list[dict[str, object]] = []
         for item in pipeline_result.folder_results:
-            inspection = inspection_by_folder.get(item.source_folder, {})
-            lois_id = inspection.get("lois_id")
-            record = excel_index.by_lois_id.get(lois_id) if lois_id else None
-
             summary_rows.append(
                 {
                     "Bronfolder": item.source_folder,
-                    "Boeknummer": item.book_number or (record.book_number if record else ""),
-                    "Titel": item.title or (record.title if record else ""),
+                    "Lois ID": item.lois_id,
+                    "Boeknummer": item.book_number,
+                    "Titel": item.title,
                     "Outputfolder (boeknummer_titel)": item.output_folder,
                     "Status": item.status,
                     "Geconverteerd": item.converted_count,
@@ -145,7 +133,7 @@ make_sidebar()
 st.markdown("# 📚 Braille Conversie Dedicon Luisterpunt")
 st.write(
     "Met deze pagina zet je braillebronbestanden om naar een output-ZIP die je direct kunt downloaden. "
-    "Je uploadt één input-ZIP en één Excel-bestand."
+    "Je uploadt één ZIP; de boekgegevens worden automatisch uit de XML-bestanden gelezen."
 )
 
 with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
@@ -153,29 +141,18 @@ with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
         """
 **Wat heb je nodig?**
 - Een **input-ZIP** met één of meerdere bronfolders.
-- Een **Excel-bestand** met boekgegevens.
 
 **Hoe moet de ZIP opgebouwd zijn?**
 - In de ZIP staan bronfolders op het hoogste niveau.
 - Elke bronfolder bevat:
   - exact **1 XML-bestand**
   - **1 of meer `.brl`-bestanden**
-- De foldernaam mag beginnen met:
-  - de **Lois ID uit kolom C** (oude levering), of
-  - het **Belgische boeknummer uit kolom E** (nieuwe levering).
-- Voorbeeld oude levering:
-  - `374170_1_1/meta374170.xml`
-  - `374170_1_1/p374170_001.brl`
-- Voorbeeld nieuwe levering:
-  - `63773_voorrang/meta374170.xml`
-  - `63773_voorrang/p374170_001.brl`
-- XML- en BRL-bestandsnamen blijven altijd de Lois ID uit kolom C bevatten.
-
-**Welke Excel-kolommen worden gebruikt?**
-- **Kolom B** = titel
-- **Kolom C** = Lois ID
-- **Kolom E** = boeknummer
-- **Rij 1 wordt overgeslagen** (koprij/titelrij)
+- De foldernaam begint met het **Belgische boeknummer**.
+- Voorbeeld:
+  - `65856/meta378393.xml`
+  - `65856/p378393_001.brl`
+- De XML bevat expliciete velden voor **Lois ID** (`lois_id`) en **titel** (`title`).
+- De XML- en BRL-bestandsnamen bevatten dezelfde Lois ID als de XML-metadata.
 
 **Hoe worden outputnamen gemaakt?**
 - Outputfolder: `{boeknummer}_{titel_slug}`
@@ -189,9 +166,9 @@ with st.expander("Hulp: hoe gebruik ik deze pagina?", expanded=False):
 **Veelvoorkomende fouten**
 - "exact 1 XML-bestand": er ontbreekt XML of er staan er meerdere in een bronfolder.
 - "minstens 1 .brl-bestand": er staan geen `.brl`-bestanden in een bronfolder.
-- "Geen Excel-match op Lois ID": de Lois ID uit de input is niet teruggevonden in Excel kolom C.
-- "Lois ID in XML/BRL komt niet overeen": de bestandsnamen passen niet bij kolom C van de Excel-rij.
-- "Geen Excel-match voor het nummer uit de bronfolder": het foldernummer staat niet in kolom C of E.
+- "geen expliciet `<lois_id>`-veld": de Lois ID ontbreekt in de XML.
+- "geen expliciet `<title>`-veld": de titel ontbreekt in de XML.
+- "Lois ID ... komt niet overeen": de XML-metadata en bestandsnamen horen niet bij hetzelfde boek.
         """
     )
 
@@ -205,36 +182,26 @@ if "braille_uploader_version" not in st.session_state:
 
 uploader_version = st.session_state.braille_uploader_version
 input_zip = st.file_uploader("Input ZIP", type=["zip"], key=f"braille_input_zip_{uploader_version}")
-excel_file = st.file_uploader("Excel mapping", type=["xlsx", "xls"], key=f"braille_excel_file_{uploader_version}")
 
 if input_zip is not None:
     size_mb = input_zip.size / (1024 * 1024)
     st.success(f"Bron-ZIP geladen: `{input_zip.name}` ({size_mb:.2f} MB).")
     st.info("Bronbestanden ingeladen.")
 
-if input_zip is None and excel_file is None:
-    st.warning("Upload een input-ZIP en een Excel-bestand om te kunnen verwerken.")
-elif input_zip is None:
+if input_zip is None:
     st.warning("Input-ZIP ontbreekt.")
-elif excel_file is None:
-    st.warning("Excel-bestand ontbreekt.")
 else:
-    st.success("Alle vereiste bestanden zijn geladen. Je kunt nu verwerken.")
+    st.success("De bronbestanden zijn geladen. Je kunt nu verwerken.")
 
-if st.button("Verwerken", type="primary", disabled=(input_zip is None or excel_file is None)):
-    if input_zip is None and excel_file is None:
-        st.error("Upload eerst een input-ZIP en een Excel-bestand.")
-    elif input_zip is None:
+if st.button("Verwerken", type="primary", disabled=(input_zip is None)):
+    if input_zip is None:
         st.error("Upload eerst een input-ZIP.")
-    elif excel_file is None:
-        st.error("Upload eerst een Excel-bestand.")
     else:
         progress = st.progress(0, text="Starten...")
         try:
             cnv_path = Path(__file__).resolve().parents[1] / "brl2brf.cnv"
             output_bytes, summary_rows = _run_zip_conversion(
                 input_zip_file=input_zip,
-                excel_file=excel_file,
                 cnv_path=cnv_path,
                 progress=progress,
             )

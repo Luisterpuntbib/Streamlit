@@ -2,9 +2,7 @@ import unittest
 import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
-from braille_models import BookRecord
 from pipeline_disk import run_pipeline_disk
 from scripts.compare_output_zips import compare_output_zips
 
@@ -18,33 +16,23 @@ class RegressionConversionTests(unittest.TestCase):
             input_zip = root / "input_fixed.zip"
             expected_zip = root / "expected_reference.zip"
             actual_zip = root / "actual_pipeline.zip"
-            dummy_excel = root / "dummy.xlsx"
 
-            xml_content = b"<boek><meta>ongewijzigd</meta></boek>"
+            xml_content = (
+                b"<document><lois_id>t374170</lois_id>"
+                b"<title>Aan mij heb je niks</title><meta>ongewijzigd</meta></document>"
+            )
             brl_content = bytes([37, 93, 65, 66, 10])
             expected_brf_content = bytes([35, 62, 97, 98, 10])
 
             self._build_input_zip(input_zip, xml_content, brl_content)
             self._build_expected_zip(expected_zip, xml_content, expected_brf_content)
-            dummy_excel.write_bytes(b"dummy")
-
-            record = BookRecord(
-                excel_row=2,
-                title="Aan mij heb je niks",
-                title_slug="Aan_mij_heb_je_niks",
-                book_number="63773",
-                lois_id="374170",
-            )
-
             cnv_path = Path(__file__).resolve().parents[1] / "brl2brf.cnv"
 
-            with patch("pipeline_disk.parse_excel_mapping_file", return_value=[record]):
-                run_pipeline_disk(
-                    input_zip_path=input_zip,
-                    excel_path=dummy_excel,
-                    cnv_path=cnv_path,
-                    output_zip_path=actual_zip,
-                )
+            run_pipeline_disk(
+                input_zip_path=input_zip,
+                cnv_path=cnv_path,
+                output_zip_path=actual_zip,
+            )
 
             result = compare_output_zips(expected_zip=expected_zip, actual_zip=actual_zip)
 
@@ -62,8 +50,8 @@ class RegressionConversionTests(unittest.TestCase):
     @staticmethod
     def _build_input_zip(path: Path, xml_content: bytes, brl_content: bytes) -> None:
         with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.writestr("374170_1_1/meta374170.xml", xml_content)
-            archive.writestr("374170_1_1/p374170_001.brl", brl_content)
+            archive.writestr("63773/meta374170.xml", xml_content)
+            archive.writestr("63773/p374170_001.brl", brl_content)
 
     @staticmethod
     def _build_expected_zip(path: Path, xml_content: bytes, brf_content: bytes) -> None:

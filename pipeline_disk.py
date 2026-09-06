@@ -1,4 +1,4 @@
-"""Disk-based ZIP pipeline for multi-folder Braille conversion.
+"""Disk-based ZIP pipeline for XML-metadata-based Braille conversion.
 
 This pipeline unpacks one input ZIP, processes top-level source folders
 sequentially, and creates one output ZIP containing all output folders.
@@ -13,7 +13,6 @@ from pathlib import Path
 
 from braille_models import PipelineResult, ProcessingLimits
 from brl_conversion import parse_cnv_table_bytes
-from excel_mapping import build_excel_index, parse_excel_mapping_file
 from folder_processor import process_source_folder
 from validators import (
     determine_file_lois_id_and_consistency,
@@ -109,14 +108,14 @@ def inspect_input_zip(input_zip_path: Path) -> list[dict[str, object]]:
 
 def run_pipeline_disk(
     input_zip_path: Path,
-    excel_path: Path,
     cnv_path: Path,
     output_zip_path: Path,
     limits: ProcessingLimits | None = None,
 ) -> PipelineResult:
     """Run the full disk-based conversion pipeline.
 
-    Important validation rules:
+    Book numbers come from source folder names; titles and Lois IDs come from
+    explicit XML fields. Important validation rules:
     - input ZIP size must not exceed ``max_zip_size_bytes``
     - top-level source folder count must not exceed ``max_source_folders``
     - each source folder is processed through ``process_source_folder`` and
@@ -124,7 +123,6 @@ def run_pipeline_disk(
 
     Args:
         input_zip_path: ZIP with top-level source folders.
-        excel_path: Excel mapping file.
         cnv_path: Fixed conversion table file.
         output_zip_path: Destination ZIP path to write pipeline output.
         limits: Optional processing limits.
@@ -142,8 +140,6 @@ def run_pipeline_disk(
 
     if not input_zip_path.is_file():
         raise FileNotFoundError(f"Input zip niet gevonden: {input_zip_path}")
-    if not excel_path.is_file():
-        raise FileNotFoundError(f"Excel-bestand niet gevonden: {excel_path}")
     if not cnv_path.is_file():
         raise FileNotFoundError(f"CNV-bestand niet gevonden: {cnv_path}")
 
@@ -153,8 +149,6 @@ def run_pipeline_disk(
             f"Input zip overschrijdt maximum grootte: {zip_size} > {limits.max_zip_size_bytes} bytes."
         )
 
-    records = parse_excel_mapping_file(excel_path)
-    excel_index = build_excel_index(records)
     conversion_table = parse_cnv_table_bytes(cnv_path.read_bytes())
 
     with tempfile.TemporaryDirectory(prefix="braille_pipeline_") as temp_dir:
@@ -187,7 +181,6 @@ def run_pipeline_disk(
             result = process_source_folder(
                 source_folder=source_folder,
                 output_root=per_source_stage,
-                excel_index=excel_index,
                 conversion_table=conversion_table,
                 limits=limits,
             )

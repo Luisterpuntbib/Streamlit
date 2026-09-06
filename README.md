@@ -1,108 +1,88 @@
 # Streamlit Luisterpunt
 
-Via een Streamlit-app kan de IT-afdeling gemakkelijk losse scripts delen met collega's van andere afdelingen. Het gaat om scripts die op onregelmatige basis door de collega's zelf worden uitgevoerd en waarbij ze liever geen command line gebruiken.
+Via deze Streamlit-app kan de IT-afdeling losse conversiescripts beschikbaar maken voor collega's.
 
-## De Streamlit-app bevat de volgende scripts
+## Functionaliteiten
 
-- ✉️ Bpost-etiketten: een script voor Com&Prom om automatisch adresgegevens vanuit formulieren op de website om te zetten naar etiketten in een formaat dat Bpost accepteert.
-- ⠃ Braille conversie: verwerking van bronfolders met XML + BRL naar BRF-output op basis van Excel-mapping en een vaste `.cnv` conversietabel.
+- Bpost-etiketten: zet adresgegevens uit webformulieren om naar het Bpost-formaat.
+- Brailleconversie: verwerkt XML- en BRL-bronbestanden naar hernoemde XML- en BRF-output.
 
-## Braillefunctionaliteit
+## Brailleconversie zonder Excel
 
-### Doel
+De Brailleflow leest alle benodigde metadata uit de input zelf:
 
-De brailleflow verwerkt één input-ZIP met meerdere bronfolders. Per bronfolder wordt:
-- de Lois ID gevalideerd en gematcht met Excel,
-- XML ongewijzigd gekopieerd (alleen bestandsnaam wijzigt),
-- elk `.brl`-bestand geconverteerd naar `.brf`,
-- een outputfolder opgebouwd.
+- Belgisch boeknummer: uit de naam van de bronfolder.
+- Lois ID: uit het expliciete XML-veld `lois_id`.
+- Titel: uit het expliciete XML-veld `title`.
 
-Bij fouten wordt nog steeds een outputfolder aangemaakt met `error_report.txt`.
+Excel is niet nodig. De XML-inhoud wordt exact en ongewijzigd gekopieerd; alleen de XML-bestandsnaam verandert.
 
-### Verwachte input ZIP-structuur
+### Input-ZIP
+
+De ZIP bevat één of meerdere bronfolders op het hoogste niveau:
 
 ```text
 input.zip
-  374170_1_1/
-    meta374170.xml
-    p374170_001.brl
-    p374170_002.brl
-  63773_voorrang/
-    meta380532.xml
-    p380532_001.brl
+  65856/
+    meta378393.xml
+    p378393_001.brl
+    p378393_002.brl
+  66000/
+    meta379230.xml
+    p379230_001.brl
 ```
 
-Regels per bronfolder:
-- exact 1 XML-bestand
-- 1 of meer `.brl`-bestanden
-- `.brl`-bestandsnamen volgen patroon `*_NNN.brl`
-- oude levering: foldernummer is de Lois ID uit kolom C
-- nieuwe levering: foldernummer is het Belgische boeknummer uit kolom E
-- XML- en BRL-bestandsnamen bevatten in beide vormen de Lois ID uit kolom C
+Per bronfolder gelden deze regels:
 
-### Excel-kolommen
+- de foldernaam bevat het Belgische boeknummer;
+- exact één XML-bestand;
+- één of meer `.brl`-bestanden;
+- iedere BRL-naam eindigt op `_NNN.brl`;
+- XML- en BRL-bestandsnamen bevatten dezelfde Lois ID;
+- de XML bevat precies bruikbare `lois_id`- en `title`-velden;
+- de Lois ID uit XML komt overeen met de bestandsnamen.
 
-- Kolom B = titel
-- Kolom C = Lois ID
-- Kolom E = doel boeknummer
+Een titel mag cijfers bevatten. Alleen het expliciete `lois_id`-veld wordt als Lois ID geïnterpreteerd.
 
-Lois ID wordt genormaliseerd voor matching (trim, lowercase, optionele `t`-prefix weg, daarna numerieke waarde).
+### Outputnamen
 
-De pipeline ondersteunt twee koppelvormen:
-- foldernummer matcht kolom C; XML/BRL moeten dezelfde Lois ID bevatten
-- foldernummer matcht kolom E; XML/BRL moeten kolom C van diezelfde Excel-rij bevatten
-
-Een verschil tussen de Lois ID in XML/BRL en kolom C levert een foutfolder met `error_report.txt` op.
-
-### Outputnaamgeving
-
-Voor een gematchte rij:
-- `title_slug`: titel met spaties als underscores
-- outputfolder: `{boeknummer}_{title_slug}`
-- XML-bestandsnaam: `{boeknummer}_meta_{title_slug}.xml`
-- BRF-bestandsnaam: `{boeknummer}_{volume}_{title_slug}.brf`
+- titel-slug: spaties in de titel worden underscores;
+- outputfolder: `{boeknummer}_{titel_slug}`;
+- XML: `{boeknummer}_meta_{titel_slug}.xml`;
+- BRF: `{boeknummer}_{volume}_{titel_slug}.brf`.
 
 Voorbeeld:
-- bron: `p380532_002.brl`
-- titel: `Aan mij heb je niks`
-- boeknummer: `63773`
-- output: `63773_002_Aan_mij_heb_je_niks.brf`
+
+```text
+65856_De_Zoete_Zusjes_gaan_op_avontuur/
+  65856_meta_De_Zoete_Zusjes_gaan_op_avontuur.xml
+  65856_001_De_Zoete_Zusjes_gaan_op_avontuur.brf
+```
+
+Bij een fout wordt voor het betreffende boek toch een outputfolder gemaakt met `error_report.txt`.
 
 ### Lokaal testen
 
-Eén bronfolder:
-
-```bash
-python scripts/manual_test_one_folder.py \
-  --source-folder C:\path\to\source_folder \
-  --excel-file C:\path\to\ECB.xlsx \
-  --cnv-file C:\path\to\brl2brf.cnv \
-  --output-root C:\path\to\test_output
-```
-
-Volledige ZIP-pipeline:
-
-```bash
-python scripts/manual_test_zip_pipeline.py \
-  --input-zip C:\path\to\input.zip \
-  --excel-file C:\path\to\ECB.xlsx \
-  --cnv-file C:\path\to\brl2brf.cnv \
+```powershell
+python scripts/manual_test_zip_pipeline.py `
+  --input-zip C:\path\to\input.zip `
+  --cnv-file C:\path\to\brl2brf.cnv `
   --output-zip C:\path\to\result.zip
 ```
 
-### Streamlit gebruik
+Een losse bronfolder testen:
 
-Start de app via:
+```powershell
+python scripts/manual_test_one_folder.py `
+  --source-folder C:\path\to\65856 `
+  --cnv-file C:\path\to\brl2brf.cnv `
+  --output-root C:\path\to\output
+```
 
-```bash
+### Streamlit
+
+```powershell
 streamlit run .\main_page.py
 ```
 
-Navigeer na login naar:
-- `Braille Conversie` in de zijbalk of op de inhoudspagina.
-
-De pagina `pages/04_Braille_Conversie.py` vraagt:
-- input-ZIP upload
-- Excel upload
-
-Conversietabel is vast ingesteld op `brl2brf.cnv` in de projectroot.
+Open na het aanmelden `Braille Conversie Dedicon Luisterpunt`. Upload uitsluitend de input-ZIP en klik op `Verwerken`. De conversietabel `brl2brf.cnv` wordt uit de projectroot gebruikt.

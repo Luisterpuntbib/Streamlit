@@ -3,7 +3,6 @@
 Usage:
   python scripts/manual_test_zip_pipeline.py \
     --input-zip C:\\path\\to\\input.zip \
-    --excel-file C:\\path\\to\\ECB.xlsx \
     --cnv-file C:\\path\\to\\brl2brf.cnv \
     --output-zip C:\\path\\to\\output.zip
 
@@ -32,7 +31,6 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(description="Manual ZIP pipeline test runner.")
     parser.add_argument("--input-zip", required=True, type=Path, help="Path to input ZIP with source folders")
-    parser.add_argument("--excel-file", required=True, type=Path, help="Path to Excel mapping file")
     parser.add_argument("--cnv-file", required=True, type=Path, help="Path to CNV conversion table")
     parser.add_argument("--output-zip", required=True, type=Path, help="Path to output ZIP")
     return parser.parse_args()
@@ -66,7 +64,6 @@ def main() -> int:
     print("\n=== Pipeline uitvoering ===")
     result = run_pipeline_disk(
         input_zip_path=args.input_zip,
-        excel_path=args.excel_file,
         cnv_path=args.cnv_file,
         output_zip_path=args.output_zip,
     )
