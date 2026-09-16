@@ -10,6 +10,6 @@ if st.session_state.get("logged_in", False):
     #st.page_link("pages/02_Bpost_Etiketten.py", label="Bpost Etiketten", icon="✉️")
     # st.write("")
     st.page_link("pages/03_Bpost_Etiketten_Email.py", label="Bpost Etiketten (met e-mail)", icon="📧")
-    st.sidebar.page_link("pages/word_hindenburg_streamlit.py", label="Maak HB bronbestand aan via Word", icon="🪇")
+    st.page_link("pages/word_hindenburg_streamlit.py", label="Maak HB bronbestand aan via Word", icon="🪇")
     #st.page_link("pages/page_3.py", label="Pagina 3", icon="🧙")
     st.write("")
