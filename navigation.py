@@ -24,6 +24,7 @@ def make_sidebar():
             #st.sidebar.page_link("pages/01_inhoud.py", label="Inhoud", icon="🏠")
            # st.sidebar.page_link("pages/02_Bpost_Etiketten.py", label="Bpost Etiketten", icon="✉️")
             st.sidebar.page_link("pages/03_Bpost_Etiketten_Email.py", label="Bpost Etiketten (met e-mail)", icon="📧")
+            st.sidebar.page_link("pages/word_hindenburg_streamlit.py", label="Maak HB bronbestand aan via Word", icon="🪇")
             #st.sidebar.page_link("pages/page_3.py", label="Pagina 3", icon="🧙")
 
             st.write("")
