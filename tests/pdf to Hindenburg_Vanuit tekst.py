@@ -65,6 +65,11 @@ if pdf_bestand is not None:
 
         pagina_data = pagina.get_text("dict")
 
+        # Bijhouden welke tekstobjecten op deze PDF-pagina
+        # al verwerkt zijn. Sommige PDF's bevatten exact
+        # overlappende dubbele tekstobjecten. naar aanleiding van fout 24/09/2026
+        geziene_spans = set()
+
         for blok in pagina_data["blocks"]:
 
             if "lines" not in blok:
@@ -73,7 +78,23 @@ if pdf_bestand is not None:
             for regel in blok["lines"]:
 
                 for span in regel["spans"]:
+#naar aanleiding van fout 24/09/2026
+                    tekst_controle = span["text"].strip()
+                    bbox = span["bbox"]
 
+                    span_sleutel = (
+                        tekst_controle,
+                        round(bbox[0], 2),
+                        round(bbox[1], 2),
+                        round(bbox[2], 2),
+                        round(bbox[3], 2),
+                    )
+
+                    if span_sleutel in geziene_spans:
+                        continue
+
+                    geziene_spans.add(span_sleutel)
+#naar aanleiding van fout 24/09/2026
                     grootte = round(span["size"] * 2) / 2
 
                     profiel = (
@@ -763,6 +784,11 @@ if instellingen_geldig:
 
         pagina_data = pagina.get_text("dict")
 
+        # Bijhouden welke tekstobjecten op deze fysieke PDF-pagina
+        # al verwerkt zijn. Sommige PDF's bevatten exact overlappende
+        # dubbele tekstobjecten. Aanpassing na probleem (24/09/2026)
+        geziene_spans = set()
+
         # ====================================================
         # TYPE 1: één boekpagina per fysieke PDF-pagina
         # ====================================================
@@ -787,7 +813,23 @@ if instellingen_geldig:
                 for regel in blok["lines"]:
 
                     for span in regel["spans"]:
+#Aanpassing na probleem (24/09/2026)
+                        tekst_controle = span["text"].strip()
+                        bbox = span["bbox"]
 
+                        span_sleutel = (
+                            tekst_controle,
+                            round(bbox[0], 2),
+                            round(bbox[1], 2),
+                            round(bbox[2], 2),
+                            round(bbox[3], 2),
+                        )
+
+                        if span_sleutel in geziene_spans:
+                            continue
+
+                        geziene_spans.add(span_sleutel)
+# Einde aanpassing
                         grootte = round(span["size"] * 2) / 2
 
                         profiel = (
@@ -906,15 +948,32 @@ if instellingen_geldig:
                         for span in regel["spans"]:
 
                             x0 = span["bbox"][0]
-
+                            # Aanpassing na probleem (24/09/2026)
                             if deelpagina == 1 and x0 >= midden_x:
                                 continue
 
                             if deelpagina == 2 and x0 < midden_x:
                                 continue
 
+                            tekst_controle = span["text"].strip()
+                            bbox = span["bbox"]
+
+                            span_sleutel = (
+                                tekst_controle,
+                                round(bbox[0], 2),
+                                round(bbox[1], 2),
+                                round(bbox[2], 2),
+                                round(bbox[3], 2),
+                            )
+
+                            if span_sleutel in geziene_spans:
+                                continue
+
+                            geziene_spans.add(span_sleutel)
+
                             grootte = round(span["size"] * 2) / 2
 
+#einde aanpassing
                             profiel = (
                                 span["font"],
                                 grootte,
